@@ -1,0 +1,165 @@
+---
+title: "SVM with Stochastic Gradient Descent"
+author: "Stefan"
+date: "April 11, 2016"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Key Pieces of the Solution
+
+### Reading the data
+```{r}
+#' Read the data from a directory
+#'
+#' @param dir A directory represented as a string
+#' @parem intercept A boolean, whether we want a column of 1's added to the features
+#' @return The training and test set
+#' @examples
+#' data <- readData("/data/example", intercept = FALSE)
+#' data$train$features
+#' data$train$targets
+#' data$test$features
+#' data$test$targets
+readData <- function(dir, intercept = FALSE) {
+  #...
+  list(
+    train = list(features = features[-test.ids,], targets = targets[-test.ids]),
+    test  = list(features = features[test.ids,], targets = targets[test.ids])
+  )  
+}
+```
+
+### The fitting function
+
+```{r}
+#' Compute the coefficients of linear SVM
+#'
+#' @param train.data A list of targets and features representing the training set
+#' @param test.data A list of targets and features representing the test set
+#' @param lam. A double. The L2 penalty
+#' @param nu. A double. The learning set size
+#' @param batch.size. A int. The mini-batch size of gradient descent
+#' @param init.beta. A vector. A set of coefficients to enable continued training
+#' @return A list containing fitted coefficients, a predict function and train/test errors
+#' @examples
+#' data <- readData("/data/example", intercept = FALSE)
+#' svm.fit <- fit(data$train, data$test, lam = 1.0, nu =  0.0001, batch.size = 1)
+#' #support continued training
+#' svm.fit <- fit(data$train, data$test, lam = 0.01, nu = 0.001, batch.size = 1, svm.fit$coef)
+#' plot(svm.fit$errors.train)
+#' plot(svm.fit$errors.test)
+#' pred <- svm.fit$predict(data$train$features)
+fit <- function(train.data, test.data, lam, nu, batch.size = 1, init.beta = NULL){
+  list(coef = best.beta, 
+       errors.train = errors.train,
+       errors.test = errors.test,
+       predict = function(data){predictSVM(data, best.beta)})   
+}
+```
+
+###Supporting functions
+```{r}
+#' Multiply the data matrix X by the vector beta
+predictScores <- function(X, beta) {}
+
+#' Return predicted labels (-/+ 1's)
+predictSVM <- function(X, beta) {}
+
+#'The gradient of the hinge function
+#' @param targets. A vector of size n
+#' @param X. A matrix of dimensions n by m
+#' @param beta. A vector of dimensions m
+#' @return A n dimensional vector
+lossGradient <- function(targets, X, beta){}
+
+#' Computes the gradient of the loss w.r.t coefficients beta (i.e. dLoss/dbeta)
+gradient <- function(loss.grad, beta, X){}
+
+#' Compute the error rate
+errorRate <- function(targets, pred.targets) {}
+
+#' Returns a matrix where each row contains the ids in a batch
+getBatch <- function(n, k) {}
+```
+
+## Experiment
+
+### Plots of error rates over epochs
+
+There are 3 plots (1 seeds times 3 batch sizes).
+
+```{r}
+results <- readRDS("D:/tmp2/results.v1.rds")
+
+doPlots <- function(svm.fit, name){
+  par(mfrow=c(1,1))
+  plot(svm.fit$errors.train, type="l", col="blue", main=name,xlab="epoch", ylab="error", asp=1)
+  lines(svm.fit$errors.test, col="red")
+  legend("topright", c("train", "test"), col = c("blue", "red"), lty = c(1,1), merge = TRUE, bg = "gray90")
+}
+
+for(n in names(results)){
+  doPlots(results[[n]]$fit, n)
+}
+```
+
+### Table of statistics of experiments
+
+Since there is randomness due to the creation of the batches and the initial solution, I could repeat the learning process
+with different seeds. 
+
+```{r}
+results <- readRDS("D:/tmp2/results.v2.rds")
+times <- c()
+errors <- c()
+epochs <- c()
+for(n in names(results)){
+  r <- results[[n]]
+  times <- c(times, r$time[["user.self"]])
+  errors <- c(errors, min(r$fit$errors.test))
+  epochs <- c(epochs, length(r$fit$errors.test))
+}
+df <- data.frame(user_time_secs = times, errors = errors, epochs = epochs)
+rownames(df) <- names(results)
+print(df)
+```
+
+### Issues
+
+There are interactions between $\lambda$ (L2-penalty), $\nu$ (learning step size), batch size
+and number of training examples.
+
+To clear things up, first one needs to be precise whether the objective is 
+defined as a sum over all training examples. In batch training, typically the objective
+is the sum over all examples + L2 penalty. In online training, the objective
+is given per example + L2 penalty per example. 
+In this problem, I assume L2 penalty is for all examples. Therefore the L2 penalty needs to be adjusted by dividing by total examples.
+The gradient is per example when the batch size is 1. When the batch size is 10, some authors
+divide the sum of the gradients by 10. But when the batch size changes, one needs to adjust
+the learning step size. 
+
+In my code, I used:
+
+* L2 penalty is divided by total number of examples and then multiplied by step size. Over all examples the penalty should sum to lambda.
+* No division by batch size after averaging the gradient over the batch. If I divide, I need to change the learning step size.
+* Learning step size is left as is suggested. It is a good choice for this problem. Since
+I don't average (but sum) the gradients over the batch, the learning step need not change.
+
+For this problem the learning process was more sensitive to setting compatible values of the above parameters
+with respect to each other rather than to the batch size.
+
+
+### Sanity Check
+
+As a check I ran penalized logistic regression with R library penalized and got 15.18 error rate on the test set.
+
+
+
+
