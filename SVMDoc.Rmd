@@ -147,7 +147,7 @@ the learning step size.
 
 In my code, I used:
 
-* L2 penalty is divided by total number of examples and then multiplied by step size. Over all examples the penalty should sum to lambda.
+* L2 penalty is divided by total number of examples and then multiplied by batch size. Over all examples the penalty should sum to lambda.
 * No division by batch size after averaging the gradient over the batch. If I divide, I need to change the learning step size.
 * Learning step size is left as is suggested. It is a good choice for this problem. Since
 I don't average (but sum) the gradients over the batch, the learning step need not change.
